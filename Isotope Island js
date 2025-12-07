@@ -1,0 +1,97 @@
+// --- Isotope Island (Short JS) ---
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const timeEl = document.getElementById("time");
+const startBtn = document.getElementById("start");
+
+let isotopes = [], score = 0, timeLeft = 60, running = false;
+
+// random helper
+const rnd = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+
+// spawn a floating isotope
+function spawn() {
+  const r = rnd(15,35), mass = rnd(1,30);
+  isotopes.push({
+    x:rnd(r,canvas.width-r), y:rnd(r,canvas.height-r),
+    r, mass,
+    vx:(Math.random()-.5)*1, vy:(Math.random()-.5)*1,
+    life:rnd(100,200),
+    symbol:["H","He","Li","Be","B","C","N","O","F","Ne"][rnd(0,9)]
+  });
+}
+
+// draw all isotopes
+function drawIsotopes() {
+  isotopes.forEach(i=>{
+    ctx.beginPath();
+    ctx.arc(i.x,i.y,i.r,0,Math.PI*2);
+    ctx.fillStyle="#fff";
+    ctx.fill();
+    ctx.strokeStyle="#0b76ef";
+    ctx.lineWidth=2;
+    ctx.stroke();
+    ctx.fillStyle="#07304b";
+    ctx.font="bold 14px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText(i.symbol, i.x, i.y-4);
+    ctx.font="11px sans-serif";
+    ctx.fillText(i.mass, i.x, i.y+10);
+  });
+}
+
+// update movement & life
+function update() {
+  isotopes = isotopes.filter(i=>i.life-- > 0);
+  isotopes.forEach(i=>{
+    i.x+=i.vx; i.y+=i.vy;
+    if(i.x<i.r||i.x>canvas.width-i.r) i.vx*=-1;
+    if(i.y<i.r||i.y>canvas.height-i.r) i.vy*=-1;
+  });
+}
+
+// click to collect
+canvas.onclick = e => {
+  if(!running) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX-rect.left)*(canvas.width/rect.width);
+  const y = (e.clientY-rect.top)*(canvas.height/rect.height);
+  for(let i=isotopes.length-1;i>=0;i--){
+    const d=(x-isotopes[i].x)**2+(y-isotopes[i].y)**2;
+    if(d <= isotopes[i].r**2){
+      score += Math.ceil(isotopes[i].mass/2);
+      scoreEl.textContent = score;
+      isotopes.splice(i,1);
+      break;
+    }
+  }
+};
+
+// game loop
+function loop() {
+  if(!running) return;
+  if(Math.random()<0.03) spawn();
+  update();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawIsotopes();
+  requestAnimationFrame(loop);
+}
+
+// start game
+startBtn.onclick = ()=>{
+  running = true;
+  isotopes = [];
+  score = 0; timeLeft = 60;
+  scoreEl.textContent = score;
+  timeEl.textContent = timeLeft;
+
+  const timer = setInterval(()=>{
+    timeLeft--; timeEl.textContent = timeLeft;
+    if(timeLeft<=0){
+      running=false;
+      clearInterval(timer);
+      ctx.fillStyle="rgba(0,0,0,0.4)";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle="#fff
