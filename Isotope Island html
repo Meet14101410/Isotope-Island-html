@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Isotope Island — Mini Game</title>
+<style>
+  :root{--bg:#e6f7ff;--panel:#ffffff;--accent:#0b76ef}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,var(--bg),#cfeefb);height:100vh;display:flex;align-items:center;justify-content:center}
+  .game{width:880px;max-width:96vw;background:var(--panel);box-shadow:0 8px 30px rgba(7,35,70,.12);border-radius:12px;overflow:hidden}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #eef6ff}
+  h1{font-size:18px;margin:0;color:#07304b}
+  .hud{display:flex;gap:12px;align-items:center}
+  button{background:var(--accent);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+  canvas{display:block;background:linear-gradient(#bfe6ff,#88d0ff);width:100%;height:420px}
+  footer{padding:10px 16px;border-top:1px solid #eef6ff;font-size:13px;color:#275269}
+  .stat{background:#f4fbff;padding:6px 10px;border-radius:8px;border:1px solid #e0f3ff}
+</style>
+</head>
+<body>
+  <div class="game" role="application" aria-label="Isotope Island game">
+    <header>
+      <h1>Isotope Island</h1>
+      <div class="hud">
+        <div class="stat">Score: <span id="score">0</span></div>
+        <div class="stat">Time: <span id="time">60</span>s</div>
+        <button id="start">Start</button>
+      </div>
+    </header>
+
+    <canvas id="c" width="880" height="420"></canvas>
+
+    <footer>
+      Click isotopes to collect them. Heavier isotopes give more points. Survive until the timer ends!
+    </footer>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let width = canvas.width, height = canvas.height;
+  const scoreEl = document.getElementById('score');
+  const timeEl = document.getElementById('time');
+  const startBtn = document.getElementById('start');
+
+  let isotopes = [], score = 0, timeLeft = 60, running = false, spawnTimer = 0;
+
+  function rand(min,max){return Math.floor(Math.random()*(max-min+1))+min}
+  function pickElement(){ // random element symbol for fun
+    const list = ['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S','Cl','Ar'];
+    return list[rand(0,list.length-1)];
+  }
+
+  function spawnIsotope(){
+    const mass = rand(1,30);
+    const r = Math.max(18, Math.min(36, 36 - mass/1.0)); // visual radius ~ inversely vary a bit
+    isotopes.push({
+      x: rand(r, width - r),
+      y: rand(r, height - r),
+      vx: (Math.random()-0.5)*0.6,
+      vy: (Math.random()-0.5)*0.6,
+      r,
+      mass,
+      symbol: pickElement(),
+      life: rand(80, 220) // frames alive
+    });
+  }
+
+  function reset(){
+    isotopes = []; score = 0; timeLeft = 60; running=false; spawnTimer = 0;
+    scoreEl.textContent = score; timeEl.textContent = timeLeft;
+    drawIntro();
+  }
+
+  function drawIntro(){
+    ctx.clearRect(0,0,width,height);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fillRect(0,0,width,height);
+    ctx.fillStyle = "#07304b";
+    ctx.font = "28px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("Welcome to Isotope Island", width/2, height/2 - 10);
+    ctx.font = "14px system-ui";
+    ctx.fillText("Click Start to begin — collect isotopes by clicking them!", width/2, height/2 + 18);
+  }
+
+  function update(){
+    if(!running) return;
+    // spawn logic
+    spawnTimer++;
+    if(spawnTimer > 20 && Math.random() < 0.25) { spawnIsotope(); spawnTimer = 0; }
+
+    // update isotopes
+    for(let i = isotopes.length-1; i >= 0; i--){
+      const iso = isotopes[i];
+      iso.x += iso.vx;
+      iso.y += iso.vy;
+      iso.vx *= 0.999; iso.vy *= 0.999;
+      // bounce
+      if(iso.x < iso.r || iso.x > width-iso.r) iso.vx *= -1;
+      if(iso.y < iso.r || iso.y > height-iso.r) iso.vy *= -1;
+      iso.life--;
+      if(iso.life <= 0) isotopes.splice(i,1);
+    }
+  }
+
+  function draw(){
+    // background island + water hint
+    ctx.clearRect(0,0,width,height);
+    // water gradient is handled by CSS background; add island silhouette
+    ctx.fillStyle = "#f6e9c9";
+    ctx.beginPath();
+    ctx.ellipse(width*0.55, height*0.72, 260, 80, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // draw isotopes
+    isotopes.forEach(iso => {
+      // ring
+      ctx.beginPath();
+      ctx.arc(iso.x, iso.y, iso.r+4, 0, Math.PI*2);
+      ctx.fillStyle = "rgba(11,118,239,0.08)";
+      ctx.fill();
+      // core
+      ctx.beginPath();
+      ctx.arc(iso.x, iso.y, iso.r, 0, Math.PI*2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#0b76ef";
+      ctx.stroke();
+      // text: symbol
+      ctx.fillStyle = "#07304b";
+      ctx.font = `${Math.max(12, iso.r/1.6)}px system-ui`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(iso.symbol, iso.x, iso.y - 6);
+      ctx.font = `${Math.max(10, iso.r/2.8)}px system-ui`;
+      ctx.fillText(iso.mass, iso.x, iso.y + 12);
+    });
+
+    // small HUD overlay
+    ctx.fillStyle = "rgba(7,48,75,0.06)";
+    ctx.fillRect(10,10,150,36);
+    ctx.fillStyle = "#07304b";
+    ctx.font = "14px system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText(`Score: ${score}`, 18, 33);
+  }
+
+  canvas.addEventListener('click', (e) => {
+    if(!running) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    // check hit (last one on top)
+    for(let i = isotopes.length-1; i >= 0; i--){
+      const iso = isotopes[i];
+      const dx = mx - iso.x, dy = my - iso.y;
+      if(dx*dx + dy*dy <= iso.r*iso.r){
+        // clicked
+        const gained = Math.ceil(iso.mass/2);
+        score += gained;
+        scoreEl.textContent = score;
+        // tiny pop effect: remove isotope and spawn particles (simple)
+        isotopes.splice(i,1);
+        // optional quick particle spawn omitted for brevity
+        return;
+      }
+    }
+  });
+
+  // timing loop
+  let frame = 0;
+  function loop(){
+    frame++;
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // countdown timer
+  let countdownInterval;
+  function startGame(){
+    if(running) return;
+    running = true;
+    score = 0; timeLeft = 60;
+    scoreEl.textContent = score; timeEl.textContent = timeLeft;
+    isotopes = [];
+    countdownInterval = setInterval(() => {
+      timeLeft--;
+      timeEl.textContent = timeLeft;
+      if(timeLeft <= 0){
+        clearInterval(countdownInterval);
+        running = false;
+        // game over overlay
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillRect(0,0,width,height);
+        ctx.fillStyle = "#fff";
+        ctx.font = "26px system-ui";
+        ctx.textAlign = "center";
+        ctx.fillText(`Island Over! Score: ${score}`, width/2, height/2 - 10);
+        ctx.font = "14px system-ui";
+        ctx.fillText(`Click Start to play again.`, width/2, height/2 + 20);
+      }
+    }, 1000);
+  }
+
+  // responsiveness
+  function onResize(){
+    // keep canvas internal size consistent with CSS width
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(600, Math.floor(rect.width));
+    canvas.height = 420;
+    width = canvas.width; height = canvas.height;
+    drawIntro();
+  }
+  window.addEventListener('resize', onResize);
+
+  startBtn.addEventListener('click', () => {
+    startGame();
+  });
+
+  // init
+  onResize();
+  drawIntro();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
